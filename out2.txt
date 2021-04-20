@@ -1,0 +1,24 @@
+== Info:   Trying ::1:8001...
+== Info: TCP_NODELAY set
+== Info: Connected to localhost (::1) port 8001 (#0)
+=> Send header, 133 bytes (0x85)
+0000: POST /register HTTP/1.1
+0019: Host: localhost:8001
+002f: User-Agent: curl/7.68.0
+0048: Accept: */*
+0055: Content-Type: text/plain
+006f: Content-Length: 17
+0083: 
+=> Send data, 17 bytes (0x11)
+0000: sampo:sampo:sampo
+== Info: upload completely sent off: 17 out of 17 bytes
+== Info: Mark bundle as not supporting multiuse
+<= Recv header, 26 bytes (0x1a)
+0000: HTTP/1.1 400 Bad Request
+<= Recv header, 37 bytes (0x25)
+0000: Date: Wed, 14 Apr 2021 11:16:18 GMT
+<= Recv header, 19 bytes (0x13)
+0000: Content-length: 0
+<= Recv header, 2 bytes (0x2)
+0000: 
+== Info: Connection #0 to host localhost left intact
