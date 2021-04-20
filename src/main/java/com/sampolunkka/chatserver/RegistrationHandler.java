@@ -98,20 +98,22 @@ public class RegistrationHandler implements HttpHandler{
 
             if (text.trim().length() > 0) {
                 String[] items = text.split(":");
-                if (items.length == 3) {
+                if (items.length == 2) {
 
                     String username = items[0].trim();
+                    System.out.println(items[0]);
 
                     String password = items[1].trim();
-                    String email = items[2].trim();
+                    System.out.println(items[1]);
+                    //String email = items[2].trim();
+                    //System.out.println(items[2]);
                     
                     if (username.length() > 0 && password.length() > 0) {
                         //luokauyttaja
-                        if (auth.addUser(username, password, email)) {
-
-                            exchange.sendResponseHeaders(code, -1);
+                        if (auth.addUser(username, password, "email")) {
                             ChatServer.log("REGISTER", username + " registered as user");
                             code = 200;
+                            //exchange.sendResponseHeaders(code, -1);
                         } else {
                             code = 400;
                             responseBody = "Invalid user credentials";

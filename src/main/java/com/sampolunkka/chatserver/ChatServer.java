@@ -47,7 +47,7 @@ public class ChatServer {
         try {
             
             log("INFO", "Launching ChatServer...");
-            /*
+            
                 HttpsServer server = HttpsServer.create(new InetSocketAddress(8001), 0);
                 SSLContext sslContext = chatServerSSLContext();
                 
@@ -60,13 +60,12 @@ public class ChatServer {
                         params.setSSLParameters(sslparams);
                     }
                 });
-            */
-            HttpServer server = HttpServer.create(new InetSocketAddress(8001), 0);
+            
             ChatAuthenticator auth = new ChatAuthenticator();
             HttpContext chatContext = server.createContext("/chat", new ChatHandler());
             chatContext.setAuthenticator(auth);
 
-            server.createContext("/register", new RegistrationHandler(auth));
+            server.createContext("/registration", new RegistrationHandler(auth));
 
             server.setExecutor(null);
             log("INFO" ,"Starting ChatServer");
@@ -91,7 +90,7 @@ public class ChatServer {
             FileNotFoundException, IOException, KeyManagementException, KeyStoreException, UnrecoverableKeyException {
         char[] passphrase = "password".toCharArray();
         KeyStore ks = KeyStore.getInstance("JKS");
-        ks.load(new FileInputStream("keystore.jks"), passphrase);
+        ks.load(new FileInputStream("C:/Users/sampp/Documents/Koulu/ohj3/o3_chatserver/keystore.jks"), passphrase);
 
         KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
         kmf.init(ks, passphrase);
