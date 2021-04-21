@@ -12,4 +12,8 @@ public class User {
 
     }
 
+    public String getUserame() {
+        return this.username;
+    }
+
 }

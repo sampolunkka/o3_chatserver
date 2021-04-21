@@ -22,9 +22,7 @@ public class ChatAuthenticator extends BasicAuthenticator{
 
     public boolean addUser(String username, String password, String email) {
 
-        ChatServer.dbManager.addUser(username, password, email);
-
-        return false;
+        return ChatServer.dbManager.addUser(username, password, email);
     }
     
 }

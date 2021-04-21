@@ -13,142 +13,156 @@ import java.util.stream.Collectors;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import com.sun.net.httpserver.Headers;
 
+public class ChatHandler implements HttpHandler {
 
-public class ChatHandler implements HttpHandler{
-    
     private String responseBody = "";
+    private String operation = "ChatHandler";
 
     ArrayList<String> messages = new ArrayList<String>();
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         int code = 200;
-        ChatServer.log("<CHATHANDLER>", "Starting to handle...");
+        ChatServer.log(operation, "Starting to handle...");
         try {
             if (exchange.getRequestMethod().equalsIgnoreCase("POST")) {
                 code = handleChatMessageFromClient(exchange);
-                ChatServer.log("INFO","Reached end of POST");
-                exchange.close();
             } else if (exchange.getRequestMethod().equalsIgnoreCase("GET")) {
                 code = handleGetRequestFromClient(exchange);
             } else {
                 code = 400;
                 responseBody = "Not supported";
-                ChatServer.log("error",responseBody);
+                ChatServer.log(operation, responseBody);
             }
         } catch (IOException e) {
             code = 500;
             responseBody = "Error handling the request: " + e.getMessage();
-            ChatServer.log("error",responseBody);
+            ChatServer.log(operation, responseBody);
         } catch (Exception e) {
             code = 500;
             responseBody = "Server error: " + e.getMessage();
-            ChatServer.log("error",responseBody);
+            ChatServer.log(operation, responseBody);
         }
         if (code < 200 || code >= 400) {
-            ChatServer.log(Integer.toString(code), responseBody);
-            sendResponseMessageToClient(exchange, responseBody, code);
+            ChatServer.log(operation, Integer.toString(code) + ": " + responseBody);
         }
+
+        // send response
+        byte bytes[] = responseBody.getBytes("UTF-8");
+        int length = bytes.length;
+        if (length == 0) {
+            exchange.sendResponseHeaders(code, -1);
+        } else {
+            exchange.sendResponseHeaders(code, bytes.length);
+            OutputStream oStream = exchange.getResponseBody();
+            oStream.write(bytes);
+            oStream.close();
+        }
+
     }
 
     private int handleGetRequestFromClient(HttpExchange exchange) throws IOException {
         int code = 200;
 
+        messages = ChatServer.getDbManager().findAllMessages();
+
         if (messages.isEmpty()) {
             code = 204;
-            exchange.sendResponseHeaders(code, -1);
             ChatServer.log("INFO", "Messages is empty");
-            return code;
+        } else {
+            ChatServer.log("GET", "Delivering messages to client");
+            String messageBody = "";
+            for (String message : messages) {
+                messageBody += message + "\n";
+            }
+            responseBody = messageBody;
         }
-
-        String messageBody = "";
-        for (String message : messages) {
-            messageBody += message + "\n";
-        }
-        
-        sendResponseMessageToClient(exchange, messageBody, code);
-        
         return code;
     }
 
     private int handleChatMessageFromClient(HttpExchange exchange) throws IOException {
+        operation = "POST Message";
+        ChatServer.log(operation, "Trying to recieve chat message");
 
-        ChatServer.log("POST", "Trying to recieve chat message");
-        
         int code = 200;
         Headers headers = exchange.getRequestHeaders();
 
         int contentLength = 0;
         String contentType = "";
-        
-        
+
         if (headers.containsKey("Content-Length")) {
             contentLength = Integer.parseInt(headers.get("Content-Length").get(0));
-            ChatServer.log("POST", "Chat message contains content length: "
-                    + Integer.toString(contentLength));
-        
+            ChatServer.log(operation, "Chat message contains content length: " + Integer.toString(contentLength));
+
         } else {
             code = 411;
-            ChatServer.log("POST", "No content length in header");
+            ChatServer.log(operation, "No content length in header");
             return code;
         }
 
         if (headers.containsKey("Content-Type")) {
             contentType = headers.get("Content-Type").get(0);
-            ChatServer.log("POST", "Chat message contains key Content-Type");
-        
+            ChatServer.log(operation, "Chat message contains key Content-Type");
+
         } else {
             code = 400;
             responseBody = "No content type in request";
-            ChatServer.log("POST", responseBody);
+            ChatServer.log(operation, responseBody);
             return code;
         }
-        
-        if (contentType.equalsIgnoreCase("text/plain")) {
 
-            ChatServer.log("POST", "Content is text/plain");
+        if (contentType.equalsIgnoreCase("application/json")) {
+
+            ChatServer.log(operation, "Content-Type is: " + contentType);
 
             InputStream iStream = exchange.getRequestBody();
-            String text = new BufferedReader(new InputStreamReader(iStream, StandardCharsets.UTF_8)).lines().collect(Collectors.joining("\n"));
-            iStream.close();
+            String text = new BufferedReader(new InputStreamReader(iStream, StandardCharsets.UTF_8)).lines()
+                    .collect(Collectors.joining("\n"));
 
-            if (text.trim().length() > 0) {
-                processMessage(text);
-                exchange.sendResponseHeaders(code, -1);
-                ChatServer.log("POST", "Content is: " + text);
-            } else {
+            iStream.close();
+            try {
+                JSONObject messageObject = new JSONObject(text);
+                String messageBody = messageObject.getString("message").trim();
+                String username = messageObject.getString("user").trim();
+                String timestamp = messageObject.getString("sent").trim();
+
+                if (messageBody.length() > 0 && username.length() > 0 && timestamp.length() > 0) {
+                    ChatServer.getDbManager().addMessage(username, messageBody, timestamp);
+                } else {
+                    responseBody = "Invalid content";
+                    ChatServer.log(operation, responseBody);
+                }
+
+            } catch (JSONException e) {
                 code = 400;
-                responseBody = "No content in request";
+                responseBody = "Invalid message format";
+                ChatServer.log(operation, e.toString() + "\n" + text);
             }
-            
 
         } else {
             code = 411;
-            responseBody = "Content-Type must be text/plain";
-            ChatServer.log("POST", responseBody);
+            responseBody = "Content-Type must be application/json, is" + contentType;
+            ChatServer.log(operation, responseBody);
         }
-        
-        //sendResponseMessageToClient(exchange, responseBody, code);
         return code;
     }
 
-    private byte [] bytefy(String string) throws UnsupportedEncodingException {
-        byte bytes [] = string.getBytes("UTF-8");
+    private byte[] bytefy(String string) throws UnsupportedEncodingException {
+        byte bytes[] = string.getBytes("UTF-8");
         return bytes;
     }
 
     private void sendResponseMessageToClient(HttpExchange exchange, String messageBody, int code) throws IOException {
-        byte bytes [] = bytefy(messageBody);
+        byte bytes[] = bytefy(messageBody);
         exchange.sendResponseHeaders(code, bytes.length);
         OutputStream oStream = exchange.getResponseBody();
         oStream.write(bytes);
         oStream.close();
-    }
-
-    private void processMessage(String text) {
-        messages.add(text);
-        ChatServer.log("POST", "Message processed");
     }
 }

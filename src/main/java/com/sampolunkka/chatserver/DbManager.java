@@ -6,10 +6,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 
 
 public class DbManager {
 
+    private String operation = "DbManager";
+    private String logBody = "";
     private String url = "";
 
 
@@ -20,60 +23,31 @@ public class DbManager {
         createUsersTable();
     }
 
-    private Connection connect() {
-
-        String operation = "dbConnect";
-        String logBody = "";
-
-        Connection connection = null;
-
-        try {
-            connection = DriverManager.getConnection(url);
-            
-            if (connection != null) {
-                logBody = "new db created";
-            
-            } else {
-                logBody = "connect success";
-
-            }
-
-        } catch (SQLException e) {
-            logBody = e.toString();
-        }
-
-        ChatServer.log(operation, logBody);
-        
-        return connection;
-    }
-
     private void createTable(String sql) {
 
-        String operation = "createTable";
-        String logBody = "";
+        operation = "createTable";
 
-        try {
-            Statement statement = connect().createStatement();
+        try (Connection conn = DriverManager.getConnection(url)) {
+            Statement statement = conn.createStatement();
             statement.execute(sql);
             logBody = "Table created with statement: (\n" + sql + "\n)";
         } catch (SQLException e) {
             logBody = e.toString();
         }
 
-        ChatServer.log(operation, logBody);
+        log(operation, logBody);
     }
 
     private void createMessageLog() {
 
         String sql = "CREATE TABLE IF NOT EXISTS messages(\n"
-                + "    id integer PRIMARY KEY,            \n"
-                + "    time_created TIMESTAMP,            \n"
+                + "    time_created text,            \n"
                 + "    username text NOT NULL,            \n"
                 + "    message text NOT NULL              \n"
                 + ");";
 
-        try {
-			Statement statement = this.connect().createStatement();
+        try (Connection conn = DriverManager.getConnection(url)) {
+			Statement statement = conn.createStatement();
 			statement.execute(sql);
 			
 		} catch (SQLException e) {
@@ -91,8 +65,8 @@ public class DbManager {
                 + "    message text NOT NULL            \n"
                 + ");";
 
-        try {
-			Statement statement = this.connect().createStatement();
+        try (Connection conn = DriverManager.getConnection(url)) {
+			Statement statement = conn.createStatement();
 			statement.execute(sql);
 			
 		} catch (SQLException e) {
@@ -108,8 +82,8 @@ public class DbManager {
                 + "email text NOT NULL           \n"
                 + ");";
 
-        try {
-			Statement statement = this.connect().createStatement();
+        try (Connection conn = DriverManager.getConnection(url)) {
+			Statement statement = conn.createStatement();
 			statement.execute(sql);
 			
 		} catch (SQLException e) {
@@ -119,41 +93,96 @@ public class DbManager {
 
     public boolean addUser(String username, String password, String email) {
         
+        operation = "DB: addUser";
         String query = "INSERT INTO users (username,  password, email) VALUES (?, ?, ?)";
 
-        try {
-            PreparedStatement ps = connect().prepareStatement(query);
+        try (Connection conn = DriverManager.getConnection(url)) {
+            PreparedStatement ps = conn.prepareStatement(query);
             ps.setString(1, username);
-            ps.setString(2, ChatServer.hashPassword(password).toString());
+            ps.setString(2, password);
             ps.setString(3, email);
             ps.executeUpdate();
-            ChatServer.log("REGISTER", "register success");
+            log(operation, "register success");
+            return true;
         } catch (SQLException e) {
-            ChatServer.log("REGISTER", "register fail");
+            log(operation, "register fail");
         }
 
         return false;
     }
 
+    public boolean addMessage (String username, String messageBody, String timestamp) {
+
+        operation = "DB: addMessage";
+        System.out.println(username + " " + messageBody + " " + timestamp);
+        String query = "INSERT INTO messages (time_created, username, message) VALUES (?, ?, ?)";
+
+        try (Connection conn = DriverManager.getConnection(url)) {
+            PreparedStatement ps = conn.prepareStatement(query);
+            ps.setString(1, timestamp);
+            ps.setString(2, username);
+            ps.setString(3, messageBody);
+            ps.executeUpdate();
+            log(operation, "Message added!");
+            return true;
+        } catch (SQLException e) {
+            log(operation, e.toString());
+        }
+        return false;
+    }
+
+
+    public ArrayList<String> findAllMessages() {
+        
+        operation = "DB: findAllMessages";
+
+        ArrayList<String> messages  = new ArrayList<String>();
+        String messageRow = "";
+        String query = "SELECT time_created, username, message FROM messages";
+        
+        try (Connection conn = DriverManager.getConnection(url)) {
+            PreparedStatement ps = conn.prepareStatement(query);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                messageRow += rs.getString(1);
+                messageRow += rs.getString(2);
+                messageRow += rs.getString(3);
+                messageRow += "\n";
+                messages.add(messageRow);
+            }
+        } catch (SQLException e) {
+            log(operation, e.toString());
+        }
+        return messages;
+    }
+
+
     public boolean compareCredentials(String username, String password) {
+
+        operation = "compareCredentials";
 
         String query = "SELECT username, password FROM users WHERE username = ?";
         
-        try {
-            PreparedStatement ps = connect().prepareStatement(query);
+        try (Connection conn = DriverManager.getConnection(url)) {
+            PreparedStatement ps = conn.prepareStatement(query);
             ps.setString(1, username);
-            ResultSet rs = ps.executeQuery(query);
+            ResultSet rs = ps.executeQuery();
+            
             if (rs.getString(1).equals(username)) {
-                if (rs.getString(2).equals(ChatServer.hashPassword(password).toString())) {
-                    //login success
+                if (rs.getString(2).equals(password)) {
+                    logBody = "password and user match";
+                    log("LOGIN", logBody);
                     return true;
-                }
-            }
-
+                } else logBody = "Invalid password";
+            } else logBody = "No match for user: " + username + " in db";
         } catch(Exception e) {
-
+            logBody = e.toString();
         }
-
+        log(operation, logBody);
         return false;
+    }
+
+    private void log(String operation, String logBody) {
+        ChatServer.log(operation, logBody);
     }
 }

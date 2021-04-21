@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Collectors;
@@ -11,8 +12,9 @@ import java.util.stream.Collectors;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import org.json.*;
 
-public class RegistrationHandler implements HttpHandler{
+public class RegistrationHandler implements HttpHandler {
 
     ChatAuthenticator auth = null;
 
@@ -22,121 +24,118 @@ public class RegistrationHandler implements HttpHandler{
         auth = authenticator;
     }
 
-
     @Override
     public void handle(HttpExchange exchange) throws IOException {
         int code = 200;
-        ChatServer.log("<RegistrationHandler>", "Starting to handle...");
+        ChatServer.log("REGISTER", "Starting to handle registration");
         try {
             if (exchange.getRequestMethod().equalsIgnoreCase("POST")) {
-
                 handleRegistrationFromClient(exchange);
             } else {
                 code = 400;
                 responseBody = "Not supported";
-                ChatServer.log("error",responseBody);
+                ChatServer.log("error", responseBody);
             }
         } catch (IOException e) {
             code = 500;
             responseBody = "Error handling the request: " + e.getMessage();
-            ChatServer.log("error",responseBody);
+            ChatServer.log("error", responseBody);
         } catch (Exception e) {
             code = 500;
             responseBody = "Server error: " + e.getMessage();
-            ChatServer.log("error",responseBody);
+            ChatServer.log("error", responseBody);
         }
         if (code < 200 || code >= 400) {
             ChatServer.log(Integer.toString(code), responseBody);
         }
-        
+
+        //send response
+        byte bytes [] = responseBody.getBytes("UTF-8");
+        int length = bytes.length;
+        if (length == 0) {
+            exchange.sendResponseHeaders(code, -1);
+        } else {
+            exchange.sendResponseHeaders(code, bytes.length);
+            OutputStream oStream = exchange.getResponseBody();
+            oStream.write(bytes);
+            oStream.close();
+        }
     }
 
     private void handleRegistrationFromClient(HttpExchange exchange) throws IOException {
 
         ChatServer.log("REGISTER", "Trying to recieve registration");
-        
+
         int code = 200;
         Headers headers = exchange.getRequestHeaders();
 
         int contentLength = 0;
         String contentType = "";
-        
-        
+
         if (headers.containsKey("Content-Length")) {
             contentLength = Integer.parseInt(headers.get("Content-Length").get(0));
-            ChatServer.log("REGISTER", "Register contains content length: "
-                    + Integer.toString(contentLength));
-        
+            ChatServer.log("REGISTER", "Register contains content length: " + Integer.toString(contentLength));
+
         } else {
             code = 411;
-            ChatServer.log("REGISTER", "No content length in header");;
+            responseBody = "No length in request header";
+            ChatServer.log("REGISTER", responseBody);
         }
 
         if (headers.containsKey("Content-Type")) {
             contentType = headers.get("Content-Type").get(0);
-            ChatServer.log("REGISTER", "Register contains key Content-Type");
-        
         } else {
             code = 400;
-            responseBody = "No content type in header";
-            ChatServer.log("REGISTER", responseBody);;
+            responseBody = "No content type in request header";
+            ChatServer.log("REGISTER", responseBody);
         }
-        
-        if (contentType.equalsIgnoreCase("text/plain")) {
 
-            ChatServer.log("REGISTER", "Content is text/plain");
+        if (contentType.equalsIgnoreCase("application/json")) {
+
+            ChatServer.log("REGISTER", "Content type is " + contentType);
 
             InputStream iStream = exchange.getRequestBody();
-            String text = new BufferedReader(
-                new InputStreamReader(
-                        iStream,
-                        StandardCharsets.UTF_8
-                )
-            ).lines().collect(Collectors.joining("\n"));
-            
+            String text = new BufferedReader(new InputStreamReader(iStream, StandardCharsets.UTF_8)).lines()
+                    .collect(Collectors.joining("\n"));
+
             iStream.close();
 
-            if (text.trim().length() > 0) {
-                String[] items = text.split(":");
-                if (items.length == 2) {
+            // JSON
+            try {
+                
+                JSONObject userdetails   = new JSONObject(text).getJSONObject("userdetails");
 
-                    String username = items[0].trim();
-                    System.out.println(items[0]);
+                String username = userdetails.getString("username").trim();
+                String password = userdetails.getString("password").trim();
+                String email    = userdetails.getString("email").trim();
 
-                    String password = items[1].trim();
-                    System.out.println(items[1]);
-                    //String email = items[2].trim();
-                    //System.out.println(items[2]);
-                    
-                    if (username.length() > 0 && password.length() > 0) {
-                        //luokauyttaja
-                        if (auth.addUser(username, password, "email")) {
-                            ChatServer.log("REGISTER", username + " registered as user");
-                            code = 200;
-                            //exchange.sendResponseHeaders(code, -1);
-                        } else {
-                            code = 400;
-                            responseBody = "Invalid user credentials";
-                        }
+                System.out.println(username + " " + password + " " + email + "\n");
+                System.out.println(username.length() + " " + password.length() + " " + email.length());
+
+                if ( username.length() > 0 && password.length() > 0 && email.length() > 0 ) {
+                    if (auth.addUser(username, password, email)) {
+                        ChatServer.log("REGISTER", username + " registered as user");
+                        code = 200;
                     } else {
                         code = 400;
-                        responseBody = "Invalid user credentials";
+                        responseBody = "User exists. Try logging in.";
+                        ChatServer.log("REGISTER", responseBody);
                     }
                 } else {
                     code = 400;
                     responseBody = "Invalid user credentials";
+                    ChatServer.log("REGISTER", "Trimmed length < 1");
                 }
 
-            } else {
+            } catch (JSONException e) {
                 code = 400;
-                responseBody = "No content in request";
+                responseBody = "Invalid user credentials";
+                ChatServer.log("REGISTER", e.toString() + "\n" + text);
             }
         } else {
             code = 411;
-            responseBody = "Content-Type must be text/plain";
+            responseBody = "Content-Type must be application/json, is: " + contentType;
             ChatServer.log("REGISTER", responseBody);
         }
-
-        exchange.sendResponseHeaders(code, -1);
     }
 }

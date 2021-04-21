@@ -1,0 +1,11 @@
+{
+    "user" : "nickname",
+    "action" : "edit",
+    "userdetails" : 
+    {
+        "username" : "username",
+        "password" : "password",
+        "role" : "user",
+        "email" : "user.email@for-contacting.com"
+    }
+}
