@@ -7,13 +7,19 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.logging.ErrorManager;
 import java.util.stream.Collectors;
 
+import javax.imageio.ImageIO;
+import javax.swing.plaf.OptionPaneUI;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -21,13 +27,15 @@ import com.sun.net.httpserver.Headers;
 
 public class ChatHandler implements HttpHandler {
 
-    private String responseBody = "";
+    private String responseBody;
     private String operation = "ChatHandler";
 
     ArrayList<String> messages = new ArrayList<String>();
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
+        responseBody = "";
+        operation = "ChatHandler: handle";
         int code = 200;
         ChatServer.log(operation, "Starting to handle...");
         try {
@@ -68,20 +76,29 @@ public class ChatHandler implements HttpHandler {
     }
 
     private int handleGetRequestFromClient(HttpExchange exchange) throws IOException {
+        operation = "GetChatMessages";
         int code = 200;
 
-        messages = ChatServer.getDbManager().findAllMessages();
+        ZonedDateTime ifModifiedSince = null;
+
+        Headers requestHeaders = exchange.getRequestHeaders();
+
+        if (requestHeaders.containsKey("If-Modified-Since")) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX");
+            ifModifiedSince = ZonedDateTime.parse(requestHeaders.get("If-Modified-Since").get(0), formatter);
+        }
+
+        JSONArray messages = ChatServer.getDbManager().findAllMessages(ifModifiedSince);
 
         if (messages.isEmpty()) {
             code = 204;
-            ChatServer.log("INFO", "Messages is empty");
+            ChatServer.log("GET", "Messages is empty");
         } else {
             ChatServer.log("GET", "Delivering messages to client");
-            String messageBody = "";
-            for (String message : messages) {
-                messageBody += message + "\n";
-            }
-            responseBody = messageBody;
+            JSONObject lastModifiedMessage = messages.getJSONObject(messages.length()-1);
+            String lastModified = lastModifiedMessage.getString("sent");
+            exchange.getResponseHeaders().add("Last-Modified", lastModified);
+            responseBody = messages.toString();
         }
         return code;
     }
@@ -95,10 +112,11 @@ public class ChatHandler implements HttpHandler {
 
         int contentLength = 0;
         String contentType = "";
+        String logBody = "";
 
         if (headers.containsKey("Content-Length")) {
             contentLength = Integer.parseInt(headers.get("Content-Length").get(0));
-            ChatServer.log(operation, "Chat message contains content length: " + Integer.toString(contentLength));
+            logBody += "content length: " + Integer.toString(contentLength) + " - ";
 
         } else {
             code = 411;
@@ -108,8 +126,6 @@ public class ChatHandler implements HttpHandler {
 
         if (headers.containsKey("Content-Type")) {
             contentType = headers.get("Content-Type").get(0);
-            ChatServer.log(operation, "Chat message contains key Content-Type");
-
         } else {
             code = 400;
             responseBody = "No content type in request";
@@ -119,7 +135,9 @@ public class ChatHandler implements HttpHandler {
 
         if (contentType.equalsIgnoreCase("application/json")) {
 
-            ChatServer.log(operation, "Content-Type is: " + contentType);
+            ChatServer.log(operation, "Content-Type is: " + contentType
+                            + " - Content-Length is: " + Integer.toString(contentLength)
+                            );
 
             InputStream iStream = exchange.getRequestBody();
             String text = new BufferedReader(new InputStreamReader(iStream, StandardCharsets.UTF_8)).lines()
@@ -130,10 +148,12 @@ public class ChatHandler implements HttpHandler {
                 JSONObject messageObject = new JSONObject(text);
                 String messageBody = messageObject.getString("message").trim();
                 String username = messageObject.getString("user").trim();
-                String timestamp = messageObject.getString("sent").trim();
+                //String timestamp = messageObject.getString("sent").trim();
 
-                if (messageBody.length() > 0 && username.length() > 0 && timestamp.length() > 0) {
-                    ChatServer.getDbManager().addMessage(username, messageBody, timestamp);
+                if (messageBody.length() > 0 && username.length() > 0) {
+                    ChatServer.getDbManager().addMessage(username, messageBody);
+                    responseBody = "";
+                    code  = 200;
                 } else {
                     responseBody = "Invalid content";
                     ChatServer.log(operation, responseBody);

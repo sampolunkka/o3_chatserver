@@ -17,6 +17,7 @@ import javax.crypto.spec.PBEKeySpec;
 import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import java.time.format.DateTimeFormatter;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -38,15 +39,12 @@ public class ChatServer {
     private static String dbUrl = "jdbc:sqlite:chatserver.db";
     private static boolean https = false;
 
-
-    public static ServerLog serverLog = new ServerLog();
-    public static DbManager dbManager = new DbManager(dbUrl);
+    public static DbManager dbManager = new DbManager();
 
     public static void main(String[] args) throws IOException {
-
         try {
             
-            log("INFO", "Launching ChatServer...");
+            log("ChatServer", "Entering main loop");
             
                 HttpsServer server = HttpsServer.create(new InetSocketAddress(8001), 0);
                 SSLContext sslContext = chatServerSSLContext();
@@ -68,7 +66,7 @@ public class ChatServer {
             server.createContext("/registration", new RegistrationHandler(auth));
 
             server.setExecutor(null);
-            log("INFO" ,"Starting ChatServer");
+            log("ChatServer" ,"Starting ChatServer");
             server.start();
 
         } catch (Exception e) {
@@ -132,11 +130,7 @@ public class ChatServer {
     }
 
     public static void log(String operation, String text) {
-        serverLog.log(operation, text);
-    }
-
-    public static void log(User user, String message) {
-        serverLog.log(user, message);
+        dbManager.log(operation, text);
     }
 
     public static DbManager getDbManager() {

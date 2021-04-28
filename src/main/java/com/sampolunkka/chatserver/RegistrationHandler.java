@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.net.http.HttpResponse;
+//import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Collectors;
 
@@ -103,7 +103,7 @@ public class RegistrationHandler implements HttpHandler {
             // JSON
             try {
                 
-                JSONObject userdetails   = new JSONObject(text).getJSONObject("userdetails");
+                JSONObject userdetails   = new JSONObject(text);
 
                 String username = userdetails.getString("username").trim();
                 String password = userdetails.getString("password").trim();

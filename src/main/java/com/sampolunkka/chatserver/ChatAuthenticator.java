@@ -6,13 +6,8 @@ import com.sun.net.httpserver.BasicAuthenticator;
 
 public class ChatAuthenticator extends BasicAuthenticator{
 
-    private Map<String, String> users = null;
-
     public ChatAuthenticator() {
         super("chat");
-        users = new HashMap<String, String>();
-        users.put("dummy", "passwd");
-        //TODO Auto-generated constructor stub
     }
 
     @Override
@@ -21,8 +16,7 @@ public class ChatAuthenticator extends BasicAuthenticator{
     }
 
     public boolean addUser(String username, String password, String email) {
-
-        return ChatServer.dbManager.addUser(username, password, email);
+        return ChatServer.getDbManager().addUser(username, password, email);
     }
     
 }
