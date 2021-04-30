@@ -8,22 +8,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Base64;
 import org.apache.commons.codec.digest.Crypt;
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import javax.swing.plaf.synth.SynthScrollBarUI;
-
-import org.apache.commons.codec.digest.Crypt;
-import org.sqlite.core.DB;
 
 
 public class DbManager {
@@ -39,7 +30,6 @@ public class DbManager {
         createMessageLog();
         createUsersTable();
     }
-
 
     private void createMessageLog() {
 
@@ -95,6 +85,15 @@ public class DbManager {
 		}
     }
 
+
+    //  Lisää käyttäjän tietokantaan
+    //  username, hashedPassword, email, salt
+    //
+    //  Jos käyttäjänimi on jo tietokannassa tulee virhe SQLException 
+    //
+    //  Onnistunut lisäys palautta true;
+    //  epäonnistunut false;
+    //
     public boolean addUser(String username, String password, String email) {
         
         operation = "DB: addUser";
@@ -124,15 +123,21 @@ public class DbManager {
         } catch (SQLException e) {
             log(operation, "register fail");
         }
-
         return false;
     }
 
+
+    //  Lisätään viesti tietokantaan
+    //  
+    //  Viestistä otetaan käyttäjänimi ja viestin sisältö merkkijonona
+    //  Aikaleimaksi talletetaan palvelimen aikaleima (UTC)
+    //  En näe mitään järkeä tallettaa clientin lähettämää aikaleimaa tietokantaani, vaikka se sellaisen minulle lähettäisikin
+    //
     public boolean addMessage (String username, String messageBody) {
 
         operation = "DB: addMessage";
         
-        long timestamp = getCurrentServerTimeUTC();
+        long timestamp = getCurrentServerUnixTime();
         String query = "INSERT INTO messages (time_created, username, message) VALUES (?, ?, ?)";
 
         try (Connection conn = DriverManager.getConnection(url)) {
@@ -149,6 +154,14 @@ public class DbManager {
         return false;
     }
 
+
+    //  Etsitään kaikki viestit ennen tiettyä ajankohtaa
+    //
+    //  Valitaan SELECT:llä tietokannasta viestit, joiden aikaleima on isompi kuin parametrin time
+    //  Jos parametri time = null, cutoff aika on 0 -> haetaan kaikki viestit
+    //  
+    //  Palautetaan JSONArray messages, johon kaikki viestit on talletettu JSONObject -muodossa
+    //
     public JSONArray findAllMessages(ZonedDateTime time) {
 
         long cutoffTime = 0;
@@ -180,6 +193,14 @@ public class DbManager {
     }
 
 
+    //  Vertaillaan käyttämän antamia credejä tietokannasta läytyviin
+    // 
+    //  Tarkistetaan onko käyttäjää ollenkaan
+    //  Jos on, tarkistetaan täsmäävätkö hashatut salasanat
+    //  
+    //  Palauttaa true jos täsmäävät
+    //  False, jos jokin steppi ei onnistunut
+    //
     public boolean compareCredentials(String username, String password) {
 
         operation = "compareCredentials";
@@ -207,8 +228,13 @@ public class DbManager {
         return false;
     }
 
+
+    //  Lisätään palvelimen tapahtuma tietokantaan
+    //
+    //  Tietokantaan ylläpidetään palvelimen tapahtumista debugausta ja virheenmääritystä varten
+    //
     private boolean addEvent(String op, String description) {
-        long timestamp = getCurrentServerTimeUTC();
+        long timestamp = getCurrentServerUnixTime();
         String query = "INSERT INTO events (time_created, operation, description) VALUES (?, ?, ?)";
 
         try (Connection conn = DriverManager.getConnection(url)) {
@@ -225,29 +251,25 @@ public class DbManager {
         }
         return false;
     }
+    
 
-    private String hash(String password) {
-        byte bytes[] = new byte[13];
-        secureRandom.nextBytes(bytes);
-        String saltBytes = new String(Base64.getEncoder().encode(bytes));
-        String salt = "$6$" + saltBytes;
-        String hashedPassword = Crypt.crypt(password, salt);
-        return hashedPassword;
-    }
-
-    private long getCurrentServerTimeUTC() {
+    //  Aika long muodossa aikojen tallettamista ja vertailua varten
+    //
+    private long getCurrentServerUnixTime() {
         ZonedDateTime now = ZonedDateTime.now(ZoneId.of("UTC"));
         long unixTime = now.toInstant().toEpochMilli();
         return unixTime;
     }
 
+
+    //  Long aikojen muuntamista merkkijonoksi (esim GET:iä varten)
+    //
     private String convertUnixTimeToString(long unixTime) {
         ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(unixTime), ZoneId.of("UTC"));
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX");
         String dateText = time.format(formatter);
         return dateText;
     }
-    
 
     public void log(String operation, String logBody) {
         System.out.println("<"+operation+"> " + logBody);

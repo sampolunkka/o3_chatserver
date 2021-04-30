@@ -1,3 +1,7 @@
+#
+out2.txt
+build.sh
+
 # Don't track content of these folders
 .settings/
 .vscode/

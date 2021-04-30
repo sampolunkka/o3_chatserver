@@ -14,10 +14,7 @@ import java.security.cert.CertificateException;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
-import java.io.UnsupportedEncodingException;
-import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
-import java.time.format.DateTimeFormatter;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -26,7 +23,6 @@ import javax.net.ssl.TrustManagerFactory;
 
 import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpsServer;
-import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsParameters;
 
@@ -35,9 +31,6 @@ import com.sun.net.httpserver.HttpsParameters;
  *
  */
 public class ChatServer {
-
-    private static String dbUrl = "jdbc:sqlite:chatserver.db";
-    private static boolean https = false;
 
     public static DbManager dbManager = new DbManager();
 
@@ -74,16 +67,6 @@ public class ChatServer {
         }
     }
 
-    public static final String ANSI_RESET = "\u001B[0m";
-    public static final String ANSI_BLACK = "\u001B[30m";
-    public static final String ANSI_RED = "\u001B[31m";
-    public static final String ANSI_GREEN = "\u001B[32m";
-    public static final String ANSI_YELLOW = "\u001B[33m";
-    public static final String ANSI_BLUE = "\u001B[34m";
-    public static final String ANSI_PURPLE = "\u001B[35m";
-    public static final String ANSI_CYAN = "\u001B[36m";
-    public static final String ANSI_WHITE = "\u001B[37m";
-
     private static SSLContext chatServerSSLContext() throws NoSuchAlgorithmException, CertificateException,
             FileNotFoundException, IOException, KeyManagementException, KeyStoreException, UnrecoverableKeyException {
         char[] passphrase = "password".toCharArray();
@@ -101,32 +84,6 @@ public class ChatServer {
 
         return ssl;
 
-    }
-
-    /*
-    PBKDF2
-    Source: https://medium.com/@kasunpdh/how-to-store-passwords-securely-with-pbkdf2-204487f14e84
-    */  
-    public static byte[] hashPassword(String password) {
-
-        String saltString = "1234";
-
-        int iterations = 10000;
-        int keyLength = 512;
-
-        byte[] saltBytes = saltString.getBytes();
-        char[] passwordChars = password.toCharArray();
-
-
-        try {
-            SecretKeyFactory skf = SecretKeyFactory.getInstance( "PBKDF2WithHmacSHA512" );
-            PBEKeySpec spec = new PBEKeySpec( passwordChars, saltBytes, iterations, keyLength );
-            SecretKey key = skf.generateSecret( spec );
-            byte[] res = key.getEncoded( );
-            return res;
-        } catch ( NoSuchAlgorithmException | InvalidKeySpecException e ) {
-            throw new RuntimeException( e );
-        }
     }
 
     public static void log(String operation, String text) {
