@@ -1,6 +1,7 @@
 #
 out2.txt
 build.sh
+*.db
 
 # Don't track content of these folders
 .settings/

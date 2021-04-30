@@ -71,7 +71,7 @@ public class ChatServer {
             FileNotFoundException, IOException, KeyManagementException, KeyStoreException, UnrecoverableKeyException {
         char[] passphrase = "password".toCharArray();
         KeyStore ks = KeyStore.getInstance("JKS");
-        ks.load(new FileInputStream("C:/Users/sampp/Documents/Koulu/ohj3/o3_chatserver/keystore.jks"), passphrase);
+        ks.load(new FileInputStream("keystore.jks"), passphrase);
 
         KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
         kmf.init(ks, passphrase);
